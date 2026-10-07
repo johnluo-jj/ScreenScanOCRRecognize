@@ -24,8 +24,8 @@ _PICKER_CANCELLED = object()
 
 class MainWindow(QMainWindow):
     # 热键回调跑在 keyboard 库的线程里，靠 Signal 跨线程转主线程（queued connection）
-    _hotkey_start_requested = Signal()
-    _hotkey_stop_requested = Signal()
+    _hotkey_roi_toggled = Signal()
+    _hotkey_fullscreen_toggled = Signal()
 
     def __init__(self):
         super().__init__()
@@ -93,13 +93,17 @@ class MainWindow(QMainWindow):
         self.scan_page.config_panel.start_clicked.connect(self._on_start)
         self.scan_page.config_panel.stop_clicked.connect(self._on_stop)
 
-        # 全局热键：Ctrl+Alt+1 开扫 / Ctrl+Alt+2 停扫。回调在库自己线程里跑，
-        # 通过 Signal queued connection 中转到 Qt 主线程，避免直接跨线程操作 widget。
-        self._hotkey_start_requested.connect(self._on_start)
-        self._hotkey_stop_requested.connect(self._on_stop)
+        # 本轮扫描是否 ROI 模式（_on_start / 热键切换时更新），热键据此判断「同键停 / 异键切」
+        self._scan_use_roi = bool(config.get('scan.enable_roi'))
+
+        # 全局热键：Ctrl+Alt+1 ROI 模式开关 / Ctrl+Alt+2 全屏模式开关（同键再按即停止）。
+        # 回调在库自己线程里跑，通过 Signal queued connection 中转到 Qt 主线程，
+        # 避免直接跨线程操作 widget。
+        self._hotkey_roi_toggled.connect(lambda: self._on_hotkey_toggle(use_roi=True))
+        self._hotkey_fullscreen_toggled.connect(lambda: self._on_hotkey_toggle(use_roi=False))
         self.hotkey = HotkeyManager()
-        self.hotkey.register('ctrl+alt+1', self._hotkey_start_requested.emit, '开始扫描')
-        self.hotkey.register('ctrl+alt+2', self._hotkey_stop_requested.emit, '停止扫描')
+        self.hotkey.register('ctrl+alt+1', self._hotkey_roi_toggled.emit, 'ROI 扫描开关')
+        self.hotkey.register('ctrl+alt+2', self._hotkey_fullscreen_toggled.emit, '全屏扫描开关')
 
         # startup_mode='auto'：UI 渲染稳定后自动开扫（延 200ms 让事件循环先转一圈）
         if (config.get('app.startup_mode') or 'paused') == 'auto':
@@ -166,6 +170,7 @@ class MainWindow(QMainWindow):
                 self.activateWindow()
                 self.raise_()
             return
+        self._scan_use_roi = bool(config.get('scan.enable_roi'))
         self.overlay.clear_session()  # 新一轮扫描，清掉上一轮累计
         self.roi_border.show_for(roi)  # ROI 红框（roi=None 则不画）
         self.worker.start_scan(roi=roi)
@@ -184,6 +189,48 @@ class MainWindow(QMainWindow):
         self.worker.stop_scan()
         self.overlay.hide()
         self.roi_border.hide_border()
+
+    # ---------- 热键：ROI / 全屏 两个模式开关 ----------
+
+    def _on_hotkey_toggle(self, use_roi):
+        """热键开关：
+        - 未在扫：切到对应模式并开扫
+        - 正以同一模式在扫：停止
+        - 正以另一模式在扫：不停线程，直接切换扫描区域
+        """
+        if self.worker.is_stopping():
+            logging.info('扫描正在停止中，请稍后再按热键')
+            return
+        if not self.worker.isRunning():
+            self._set_roi_mode(use_roi)
+            self._on_start()
+            return
+        if self._scan_use_roi == use_roi:
+            self._on_stop()
+            return
+        self._switch_mode(use_roi)
+
+    def _set_roi_mode(self, use_roi):
+        """写 scan.enable_roi 并同步配置面板勾选框。
+        capture 每帧都会按 enable_roi 二次校验，所以模式必须落到配置里。"""
+        config.set('scan.enable_roi', use_roi)
+        config.save()
+        self.scan_page.config_panel.set_roi_enabled(use_roi)
+
+    def _switch_mode(self, use_roi):
+        """扫描中切换 ROI ↔ 全屏：复用已加载的 OCR，只换扫描区域。"""
+        prev = self._scan_use_roi
+        self._set_roi_mode(use_roi)
+        roi = self._resolve_roi()
+        if roi is _PICKER_CANCELLED:
+            # 取消框选：回到原模式继续扫
+            self._set_roi_mode(prev)
+            return
+        self._scan_use_roi = use_roi
+        self.overlay.clear_session()  # 换了区域，上一区域的累计命中不再沿用
+        self.roi_border.show_for(roi)  # roi=None 时自动收起红框
+        self.worker.set_roi(roi)
+        logging.info(f'已切换为{"ROI" if use_roi and roi is not None else "全屏"}扫描')
 
     def _on_status_changed(self, text):
         """worker 三态：'初始化中'/'运行中'/'已停止'。

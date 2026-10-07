@@ -224,6 +224,12 @@ class ConfigPanel(QWidget):
         self._refresh_delete_btn()
         return frame
 
+    def set_roi_enabled(self, enabled):
+        """外部触发（如热键切模式）：只同步勾选框显示，配置由调用方负责写入。"""
+        self.cb_enable_roi.blockSignals(True)
+        self.cb_enable_roi.setChecked(bool(enabled))
+        self.cb_enable_roi.blockSignals(False)
+
     def _reload_presets(self):
         """重建下拉：[重新框选...][自定义区域] + 所有命名预设；按 last_roi_choice
         定位当前项。全程 blockSignals，不触发 _on_preset_changed。"""
@@ -406,9 +412,10 @@ class ConfigPanel(QWidget):
     def _build_action_row(self):
         row = QHBoxLayout()
         row.setSpacing(10)
-        self.btn_start = LargeButton('开始扫描', 'Ctrl + Alt + 1', 'btnPrimary', 'play.svg')
+        # 热键：Ctrl+Alt+1 = ROI 模式开关，Ctrl+Alt+2 = 全屏模式开关（同键再按即停止）
+        self.btn_start = LargeButton('开始扫描', 'Ctrl+Alt+1 ROI / 2 全屏', 'btnPrimary', 'play.svg')
         self.btn_start.clicked.connect(self.start_clicked.emit)
-        self.btn_stop = LargeButton('停止扫描', 'Ctrl + Alt + 2', 'btnDanger', 'stop.svg')
+        self.btn_stop = LargeButton('停止扫描', '再按同一热键', 'btnDanger', 'stop.svg')
         self.btn_stop.clicked.connect(self.stop_clicked.emit)
         row.addWidget(self.btn_start, 1)
         row.addWidget(self.btn_stop, 1)

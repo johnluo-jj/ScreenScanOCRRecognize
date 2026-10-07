@@ -174,10 +174,12 @@ class SettingsPage(QWidget):
     def _build_hotkey_card(self):
         card = SettingsCard('热键设置')
         # 当前只读显示，编辑功能未实现
-        card.add_row(SettingsRow('开始/暂停扫描',
+        # 每个热键都是开关：未扫描时按下以对应模式开扫，同键再按停止，
+        # 扫描中按另一个键则直接切换模式
+        card.add_row(SettingsRow('ROI 扫描 开/关',
                                  HotkeyDisplay('Ctrl + Alt + 1'),
                                  with_separator=False))
-        card.add_row(SettingsRow('停止扫描', HotkeyDisplay('Ctrl + Alt + 2')))
+        card.add_row(SettingsRow('全屏扫描 开/关', HotkeyDisplay('Ctrl + Alt + 2')))
         return card
 
     # -------- 配置管理 --------

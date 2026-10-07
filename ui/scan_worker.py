@@ -11,6 +11,7 @@ UI 接：
     worker.status_changed → StatusBar.set_status
     worker.result_ready   → Overlay.update
     worker.start_scan(roi=...)
+    worker.set_roi(roi)   # 运行中切换 ROI / 全屏
     worker.stop_scan()
 """
 import logging
@@ -33,22 +34,34 @@ class ScanWorker(QThread):
         self.pipeline = ScanPipeline()
         self._stop = False
         self._roi = None
+        self._roi_dirty = False
         self._initialized = False
 
     # ---------- 公开 API ----------
 
     def start_scan(self, roi=None):
-        """启动扫描线程。若已在跑则忽略（防重复 start 抛 RuntimeError）。"""
+        """启动扫描线程。若已在跑则忽略（防重复 start 抛 RuntimeError）。
+        roi=None 表示全屏；每次启动都覆盖，避免上一轮的 ROI 残留到全屏模式。"""
         if self.isRunning():
             return
-        if roi is not None:
-            self._roi = roi
+        self._roi = roi
+        self._roi_dirty = False
         self._stop = False
         self.start()  # → run()
+
+    def set_roi(self, roi):
+        """运行中切换扫描区域（ROI ↔ 全屏）。不重启线程、不重载 OCR，
+        在下一次循环边界生效。roi=None 表示全屏。"""
+        self._roi = roi
+        self._roi_dirty = True
 
     def stop_scan(self):
         """请求停止。线程在下一次循环边界退出，不打断当前 OCR。"""
         self._stop = True
+
+    def is_stopping(self):
+        """已请求停止但线程还没退出（可能正卡在一次 OCR 里）。"""
+        return self.isRunning() and self._stop
 
     # ---------- QThread.run ----------
 
@@ -70,8 +83,7 @@ class ScanWorker(QThread):
         t0 = time.time()
         self.pipeline.init()
         self._initialized = True
-        if self._roi is not None:
-            self.pipeline.set_roi(self._roi)
+        self.pipeline.set_roi(self._roi)
         logging.info(f'OCR 初始化完成（{time.time()-t0:.1f}s）')
 
     def _do_loop(self):
@@ -80,6 +92,10 @@ class ScanWorker(QThread):
         FAILURE_THRESHOLD = 5
 
         while not self._stop:
+            if self._roi_dirty:
+                # 先清标志再读 _roi：主线程若在中间又改了一次，下一轮还会再应用
+                self._roi_dirty = False
+                self.pipeline.set_roi(self._roi)
             iv = config.get('scan.interval_seconds')
             interval = float(iv) if iv is not None else 5.0
             t0 = time.time()
@@ -120,9 +136,9 @@ class ScanWorker(QThread):
         logging.info('扫描已停止')
 
     def _sleep_with_check(self, seconds):
-        """分段 sleep，让 stop 信号能在 ≤300ms 内响应。"""
+        """分段 sleep，让 stop / 切换区域请求能在 ≤300ms 内响应。"""
         slept = 0.0
         step = 0.3
-        while slept < seconds and not self._stop:
+        while slept < seconds and not self._stop and not self._roi_dirty:
             time.sleep(min(step, seconds - slept))
             slept += step
