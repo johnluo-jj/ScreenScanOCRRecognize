@@ -24,7 +24,7 @@ ocr:
 scan:
   diff_threshold: 5.0
   enable_diff_skip: true
-  enable_roi: true
+  enable_roi: false
   interval_seconds: 3.0
   last_roi_choice: __custom__
   roi_presets:

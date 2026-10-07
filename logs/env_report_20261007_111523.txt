@@ -1,0 +1,479 @@
+# ScreenScanOCRRecognize 运行机环境报告  2026-10-07 11:15:17
+# project_root = D:\code\CursorProjects\ScreenScanOCRRecognize
+
+==============================================================================
+## 系统 / 硬件
+==============================================================================
+OS: Windows-10-10.0.19045-SP0  (10.0.19045)
+Machine: AMD64  CPU 逻辑核: 16
+CPU: Intel64 Family 6 Model 151 Stepping 2, GenuineIntel
+内存: 总 31.8 GB, 可用 10.3 GB, 占用 67%
+管理员权限（keyboard 全局热键需要）: True
+系统 DPI: 96 (96=100%, 120=125%, 144=150%)
+
+CPU 详情:
+Name                      : 12th Gen Intel(R) Core(TM) i5-12600KF
+NumberOfCores             : 10
+NumberOfLogicalProcessors : 16
+MaxClockSpeed             : 3700
+显卡:
+Name                        : OrayIddDriver Device
+DriverVersion               : 17.50.19.949
+AdapterRAM                  : 
+CurrentHorizontalResolution : 
+CurrentVerticalResolution   : 
+CurrentRefreshRate          : 
+
+Name                        : NVIDIA GeForce RTX 4060 Ti
+DriverVersion               : 32.0.15.9649
+AdapterRAM                  : 4293918720
+CurrentHorizontalResolution : 1920
+CurrentVerticalResolution   : 1080
+CurrentRefreshRate          : 60
+电源计划:
+电源方案 GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (高性能)
+
+==============================================================================
+## NVIDIA GPU
+==============================================================================
+name, driver_version, memory.total [MiB], memory.used [MiB], utilization.gpu [%], temperature.gpu, power.draw [W], pstate
+NVIDIA GeForce RTX 4060 Ti, 596.49, 8188 MiB, 2463 MiB, 40 %, 36, 17.38 W, P5
+
+Wed Oct  7 11:15:20 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 596.49                 Driver Version: 596.49         CUDA Version: 13.2     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                  Driver-Model | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 4060 Ti   WDDM  |   00000000:01:00.0  On |                  N/A |
+|  0%   36C    P5             17W /  160W |    2463MiB /   8188MiB |     40%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|    0   N/A  N/A            1448    C+G   C:\Windows\System32\dwm.exe           N/A      |
+|    0   N/A  N/A            1728    C+G   ...Chrome\Application\chrome.exe      N/A      |
+|    0   N/A  N/A            3312    C+G   ...beta\game\bin\win64\dota2.exe      N/A      |
+|    0   N/A  N/A            3488    C+G   ...ion 2024.3.2.2\bin\idea64.exe      N/A      |
+|    0   N/A  N/A            4444    C+G   ...\cef.win64\steamwebhelper.exe      N/A      |
+|    0   N/A  N/A            7800    C+G   ...Chrome\Application\chrome.exe      N/A      |
+|    0   N/A  N/A           11020    C+G   C:\Windows\explorer.exe               N/A      |
+|    0   N/A  N/A           11848    C+G   ...IA app\CEF\NVIDIA Overlay.exe      N/A      |
+|    0   N/A  N/A           12380    C+G   ...pp-4.0.823\RazerAppEngine.exe      N/A      |
+|    0   N/A  N/A           12388    C+G   ...pp-4.0.823\RazerAppEngine.exe      N/A      |
+|    0   N/A  N/A           12708    C+G   ...IA app\CEF\NVIDIA Overlay.exe      N/A      |
+|    0   N/A  N/A           14464    C+G   ...m Files (x86)\Steam\steam.exe      N/A      |
+|    0   N/A  N/A           14860    C+G   ...Chrome\Application\chrome.exe      N/A      |
+|    0   N/A  N/A           17152    C+G   ...0.2903.112\msedgewebview2.exe      N/A      |
+|    0   N/A  N/A           19084    C+G   C:\Windows\System32\notepad.exe       N/A      |
+|    0   N/A  N/A           20120    C+G   ...xyewy\ShellExperienceHost.exe      N/A      |
+|    0   N/A  N/A           20188    C+G   ...ouryDevice\asus_framework.exe      N/A      |
+|    0   N/A  N/A           24872    C+G   ...h_cw5n1h2txyewy\SearchApp.exe      N/A      |
+|    0   N/A  N/A           26168    C+G   ...5n1h2txyewy\TextInputHost.exe      N/A      |
+|    0   N/A  N/A           28212    C+G   ...)\ByteDance\douyin\douyin.exe      N/A      |
++-----------------------------------------------------------------------------------------+
+
+==============================================================================
+## 代码版本
+==============================================================================
+branch: feature/hotkey-mode-toggle
+897d4a6 chore(tools): 新增运行机环境采集脚本 collect_env.py
+2475604 feat(hotkey): Ctrl+Alt+1/2 改为 ROI / 全屏两个模式开关
+face16a 默认参数
+status:
+A  config/banlist.txt
+ M config/config.yaml
+
+==============================================================================
+## Python / 依赖
+==============================================================================
+executable: C:\Users\Administrator\AppData\Local\Programs\Python\Python313\python.exe
+version: 3.13.11 (tags/v3.13.11:6278944, Dec  5 2025, 16:26:58) [MSC v.1944 64 bit (AMD64)]
+venv: False  prefix=C:\Users\Administrator\AppData\Local\Programs\Python\Python313
+关键包:
+  paddlepaddle             (未安装)
+  paddlepaddle-gpu         3.2.2
+  paddleocr                3.3.2
+  paddlex                  3.3.12
+  numpy                    2.2.6
+  opencv-python            4.12.0.88
+  opencv-contrib-python    4.10.0.84
+  opencv-python-headless   4.12.0.88
+  mss                      10.1.0
+  PySide6                  (未安装)
+  pyahocorasick            2.3.0
+  keyboard                 0.13.5
+  pillow                   12.0.0
+  pyyaml                   6.0.2
+
+pip list:
+aistudio-sdk==0.3.8
+annotated-types==0.7.0
+anyio==4.12.0
+astor==0.8.1
+bce-python-sdk==0.9.56
+certifi==2025.11.12
+chardet==5.2.0
+charset-normalizer==3.4.4
+click==8.3.1
+colorama==0.4.6
+colorlog==6.10.1
+decorator==5.1.1
+easyocr==1.7.2
+filelock==3.20.1
+fsspec==2025.12.0
+future==1.0.0
+h11==0.16.0
+hf-xet==1.2.0
+httpcore==1.0.9
+httpx==0.28.1
+huggingface_hub==1.2.3
+idna==3.11
+ImageIO==2.37.2
+imagesize==1.4.1
+Jinja2==3.1.6
+keyboard==0.13.5
+lazy_loader==0.4
+MarkupSafe==3.0.3
+modelscope==1.33.0
+mpmath==1.3.0
+mss==10.1.0
+networkx==3.6.1
+ninja==1.13.0
+numpy==2.2.6
+nvidia-cublas-cu11==11.11.3.6
+nvidia-cublas-cu12==12.3.4.1
+nvidia-cuda-nvrtc-cu11==11.8.89
+nvidia-cuda-nvrtc-cu12==12.6.85
+nvidia-cuda-runtime-cu11==11.8.89
+nvidia-cuda-runtime-cu12==12.3.101
+nvidia-cudnn-cu11==8.9.4.19
+nvidia-cudnn-cu12==9.1.1.17
+nvidia-cufft-cu11==10.9.0.58
+nvidia-cufft-cu12==11.2.1.3
+nvidia-curand-cu11==10.3.0.86
+nvidia-curand-cu12==10.3.5.147
+nvidia-cusolver-cu11==11.4.1.48
+nvidia-cusolver-cu12==11.6.1.9
+nvidia-cusparse-cu11==11.7.5.86
+nvidia-cusparse-cu12==12.3.1.170
+nvidia-nvjitlink-cu12==12.6.85
+opencv-contrib-python==4.10.0.84
+opencv-python==4.12.0.88
+opencv-python-headless==4.12.0.88
+opt-einsum==3.3.0
+packaging==25.0
+paddleocr==3.3.2
+paddlepaddle-gpu==3.2.2
+paddlex==3.3.12
+pandas==2.3.3
+pillow==12.0.0
+pip==25.3
+prettytable==3.17.0
+protobuf==6.33.2
+psutil==7.2.0
+py-cpuinfo==9.0.0
+pyahocorasick==2.3.0
+pyclipper==1.4.0
+pycryptodome==3.23.0
+pydantic==2.12.5
+pydantic_core==2.41.5
+pypdfium2==5.2.0
+pystray==0.19.5
+pytesseract==0.3.13
+python-bidi==0.6.7
+python-dateutil==2.9.0.post0
+pytz==2025.2
+PyYAML==6.0.2
+requests==2.32.5
+ruamel.yaml==0.18.17
+ruamel.yaml.clib==0.2.15
+safetensors==0.7.0
+scikit-image==0.26.0
+scipy==1.16.3
+setuptools==80.9.0
+shapely==2.1.2
+shellingham==1.5.4
+six==1.17.0
+sympy==1.13.1
+tifffile==2025.12.20
+torch==2.6.0+cu124
+torchvision==0.21.0+cu124
+tqdm==4.67.1
+typer-slim==0.21.0
+typing_extensions==4.15.0
+typing-inspection==0.4.2
+tzdata==2025.3
+ujson==5.11.0
+urllib3==2.6.2
+wcwidth==0.2.14
+
+==============================================================================
+## Paddle 运行时
+==============================================================================
+import paddle 耗时: 0.9s
+paddle: 3.2.2
+compiled_with_cuda: True
+cuda: 11.8  cudnn: 8.9.6
+cuda device_count: 1
+当前 device: gpu:0
+paddleocr 导入失败: OSError(22, '找不到指定的程序。', None, 127)
+
+==============================================================================
+## 屏幕（mss）
+==============================================================================
+  monitors[0]: {'left': 0, 'top': 0, 'width': 1920, 'height': 1080}  (所有屏合并)
+  monitors[1]: {'left': 0, 'top': 0, 'width': 1920, 'height': 1080}
+
+==============================================================================
+## 当前 python 进程（GUI 是否在跑）
+==============================================================================
+ProcessId    : 14612
+Name         : python.exe
+WorkingSetMB : 759
+CommandLine  : C:\Users\Administrator\AppData\Local\Programs\Python\Python313\python.exe D:\code\CursorProjects\ScreenScanOCRRecognize\tools\collect_env.py
+
+==============================================================================
+## 配置
+==============================================================================
+config.yaml (D:\code\CursorProjects\ScreenScanOCRRecognize\config\config.yaml):
+app:
+  minimize_to_tray: false
+  startup_mode: paused
+files:
+  banlist_file: C:/Users/Administrator/Desktop/banlist.txt
+gpu:
+  enabled: true
+logging:
+  backup_count: 5
+  file: logs/app.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  max_bytes: 10485760
+matching:
+  display_duration: 2.5
+  enable_sound: true
+  enabled: true
+  font_size: 18
+  position: center
+ocr:
+  enable_image_invert: false
+  language: ch
+  min_confidence: 0.28
+scan:
+  diff_threshold: 5.0
+  enable_diff_skip: true
+  enable_roi: false
+  interval_seconds: 3.0
+  last_roi_choice: __custom__
+  roi_presets:
+    4+2:
+    - 1136
+    - 224
+    - 1893
+    - 850
+  roi_rect:
+  - 1580
+  - 36
+  - 1903
+  - 1040
+
+生效值（yaml + defaults 合并后）:
+  scan.interval_seconds = 3.0
+  scan.enable_roi = False
+  scan.roi_rect = [1580, 36, 1903, 1040]
+  scan.enable_diff_skip = True
+  scan.diff_threshold = 5.0
+  ocr.language = 'ch'
+  ocr.min_confidence = 0.28
+  ocr.enable_image_invert = False
+  gpu.enabled = True
+  matching.display_duration = 2.5
+  logging.level = 'INFO'
+  app.startup_mode = 'paused'
+
+词库文件: C:/Users/Administrator/Desktop/banlist.txt
+  编码: UTF-8 OK
+  大小 16496 B, 总行 425, 有效关键词（去重后） 409
+  关键词长度: min=1 max=17 avg=4.9, <=2 字符的 52 个
+
+==============================================================================
+## 日志分析（logs/app.log*）
+==============================================================================
+  app.log.2  10240 KB  mtime=2026-07-04 22:18:58
+  app.log.1  10240 KB  mtime=2026-08-19 22:18:24
+  app.log  8814 KB  mtime=2026-10-07 11:02:56
+
+时间跨度: 2026-05-18 21:57:08 → 2026-10-07 11:02:56, 共 410314 行
+级别计数: {'WARNING': 3517, 'MATCH': 3745, 'ERROR': 1}
+OCR 初始化耗时(s): [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 13.3, 0.0]
+扫描轮次 29374: 执行 OCR 10695, 帧差跳过 18679 (跳过率 64%), 累计命中 1894
+整轮耗时（执行 OCR 的轮次）: n=10695 avg=241ms p50=224ms p95=411ms min=14ms max=2564ms
+帧差跳过轮次耗时: n=18679 avg=17ms p50=17ms p95=25ms min=3ms max=242ms
+纯 ocr.ocr() 耗时: n=10695 avg=222ms p50=207ms p95=390ms min=9ms max=2545ms
+每轮识别行数: n=10695 avg=12 p50=11 p95=25 min=0 max=274
+最近 200 轮整轮耗时: n=200 avg=527ms p50=314ms p95=1172ms min=83ms max=2409ms
+
+ERROR / Traceback 片段（最近 10 条，共 2 条）:
+----------------------------------------
+2026-07-12 20:32:35.124 - root - ERROR - 扫描线程异常
+Traceback (most recent call last):
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\ui\scan_worker.py", line 57, in run
+    self._do_init()
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\ui\scan_worker.py", line 71, in _do_init
+    self.pipeline.init()
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\pipeline\pipeline.py", line 31, in init
+    self.ocr.init()
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\pipeline\ocr_stage.py", line 66, in init
+    _get_ocr()
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\pipeline\ocr_stage.py", line 38, in _get_ocr
+    _ocr_instance = PaddleOCR(
+----------------------------------------
+Traceback (most recent call last):
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\ui\scan_worker.py", line 57, in run
+    self._do_init()
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\ui\scan_worker.py", line 71, in _do_init
+    self.pipeline.init()
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\pipeline\pipeline.py", line 31, in init
+    self.ocr.init()
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\pipeline\ocr_stage.py", line 66, in init
+    _get_ocr()
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\pipeline\ocr_stage.py", line 38, in _get_ocr
+    _ocr_instance = PaddleOCR(
+                    ^^^^^^^^^^
+
+日志尾部 80 行（已去掉 OCR 文本行）:
+  2026-10-07 01:14:18.386 - root - WARNING - >>> 123 → 主白色头像 拉比克工会
+  2026-10-07 01:14:21.453 - screen_scan - INFO - OCR 识别 12 行, 耗时 0.180s
+  2026-10-07 01:14:21.453 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 01:14:21.454 - root - INFO - OCR 12 行，命中 1 条，耗时 201 ms
+  2026-10-07 01:14:21.454 - root - WARNING - >>> 123 → 主白色头像 拉比克工会
+  2026-10-07 01:14:22.957 - root - INFO - 扫描已停止
+  2026-10-07 10:49:26.250 - root - INFO - 正在初始化 OCR 模型与关键词…
+  2026-10-07 10:49:26.269 - screen_scan - INFO - 已加载 409 个关键词
+  2026-10-07 10:49:26.270 - root - INFO - OCR 初始化完成（0.0s）
+  2026-10-07 10:49:27.376 - screen_scan - INFO - OCR 识别 16 行, 耗时 1.015s
+  2026-10-07 10:49:27.377 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 10:49:27.379 - root - INFO - OCR 16 行，命中 1 条，耗时 1107 ms
+  2026-10-07 10:49:27.383 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 10:49:29.575 - screen_scan - INFO - OCR 识别 16 行, 耗时 0.286s
+  2026-10-07 10:49:29.576 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 10:49:29.577 - root - INFO - OCR 16 行，命中 1 条，耗时 303 ms
+  2026-10-07 10:49:29.577 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 10:49:32.295 - root - INFO - 帧差跳过（OCR 复用上次结果），耗时 11 ms
+  2026-10-07 10:49:32.296 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 10:49:34.101 - root - INFO - 扫描已停止
+  2026-10-07 10:49:35.563 - root - INFO - 正在初始化 OCR 模型与关键词…
+  2026-10-07 10:49:35.567 - screen_scan - INFO - 已加载 409 个关键词
+  2026-10-07 10:49:35.568 - root - INFO - OCR 初始化完成（0.0s）
+  2026-10-07 10:49:36.025 - screen_scan - INFO - OCR 识别 16 行, 耗时 0.437s
+  2026-10-07 10:49:36.025 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 10:49:36.028 - root - INFO - OCR 16 行，命中 1 条，耗时 457 ms
+  2026-10-07 10:49:36.028 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 10:49:38.594 - root - INFO - 帧差跳过（OCR 复用上次结果），耗时 13 ms
+  2026-10-07 10:49:38.594 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 10:49:40.398 - root - INFO - 扫描已停止
+  2026-10-07 11:00:25.666 - screen_scan - INFO - 热键已注册: ctrl+alt+1 - ROI 扫描开关
+  2026-10-07 11:00:25.666 - screen_scan - INFO - 热键已注册: ctrl+alt+2 - 全屏扫描开关
+  2026-10-07 11:02:11.961 - root - INFO - 正在初始化 OCR 模型与关键词…
+  2026-10-07 11:02:18.934 - screen_scan - INFO - 初始化 PaddleOCR: lang=ch, device=gpu
+  2026-10-07 11:02:25.243 - screen_scan - INFO - PaddleOCR 初始化完成
+  2026-10-07 11:02:25.244 - screen_scan - INFO - 已加载 409 个关键词
+  2026-10-07 11:02:25.244 - root - INFO - OCR 初始化完成（13.3s）
+  2026-10-07 11:02:25.894 - screen_scan - INFO - OCR 识别 19 行, 耗时 0.637s
+  2026-10-07 11:02:25.895 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:25.899 - root - INFO - OCR 19 行，命中 1 条，耗时 650 ms
+  2026-10-07 11:02:25.899 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:28.260 - root - INFO - 帧差跳过（OCR 复用上次结果），耗时 8 ms
+  2026-10-07 11:02:28.260 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:31.791 - screen_scan - INFO - OCR 识别 18 行, 耗时 0.517s
+  2026-10-07 11:02:31.791 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:31.792 - root - INFO - OCR 18 行，命中 1 条，耗时 536 ms
+  2026-10-07 11:02:31.792 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:34.393 - screen_scan - INFO - OCR 识别 16 行, 耗时 0.122s
+  2026-10-07 11:02:34.393 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:34.394 - root - INFO - OCR 16 行，命中 1 条，耗时 135 ms
+  2026-10-07 11:02:34.394 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:37.394 - screen_scan - INFO - OCR 识别 15 行, 耗时 0.122s
+  2026-10-07 11:02:37.395 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:37.396 - root - INFO - OCR 15 行，命中 1 条，耗时 130 ms
+  2026-10-07 11:02:37.396 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:40.103 - root - INFO - 扫描已停止
+  2026-10-07 11:02:42.263 - root - INFO - 正在初始化 OCR 模型与关键词…
+  2026-10-07 11:02:42.267 - screen_scan - INFO - 已加载 409 个关键词
+  2026-10-07 11:02:42.267 - root - INFO - OCR 初始化完成（0.0s）
+  2026-10-07 11:02:43.555 - screen_scan - INFO - OCR 识别 166 行, 耗时 1.225s
+  2026-10-07 11:02:43.556 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:43.594 - root - INFO - OCR 166 行，命中 1 条，耗时 1289 ms
+  2026-10-07 11:02:43.595 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:45.841 - screen_scan - INFO - OCR 识别 48 行, 耗时 0.532s
+  2026-10-07 11:02:45.841 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:45.858 - root - INFO - OCR 48 行，命中 1 条，耗时 570 ms
+  2026-10-07 11:02:45.859 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:48.919 - screen_scan - INFO - OCR 识别 54 行, 耗时 0.611s
+  2026-10-07 11:02:48.920 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:48.944 - root - INFO - OCR 54 行，命中 1 条，耗时 640 ms
+  2026-10-07 11:02:48.945 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:52.394 - screen_scan - INFO - OCR 识别 83 行, 耗时 1.068s
+  2026-10-07 11:02:52.395 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:52.426 - root - INFO - OCR 83 行，命中 1 条，耗时 1108 ms
+  2026-10-07 11:02:52.427 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:55.563 - screen_scan - INFO - OCR 识别 82 行, 耗时 1.236s
+  2026-10-07 11:02:55.564 - screen_scan - INFO - 匹配到 1 个关键词
+  2026-10-07 11:02:55.583 - root - INFO - OCR 82 行，命中 1 条，耗时 1271 ms
+  2026-10-07 11:02:55.584 - root - WARNING - >>> 天 → 玄霄头像 希望工程工会
+  2026-10-07 11:02:56.787 - root - INFO - 扫描已停止
+
+==============================================================================
+## 性能基准（当前屏幕，真实 config）
+==============================================================================
+注：enable_roi=False，capture 会强制全屏，ROI (1580, 36, 1903, 1040) 不单独测
+截图[全屏] shape=(1080, 1920, 3): n=10 avg=33ms p50=33ms p95=37ms min=30ms max=37ms
+DiffGate.should_skip: n=20 avg=1ms p50=1ms p95=4ms min=1ms max=4ms
+
+加载 OCR 模型（lang=ch, gpu=True）…
+[本段采集异常]
+Traceback (most recent call last):
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\tools\collect_env.py", line 73, in wrapper
+    fn(*a, **kw)
+    ~~^^^^^^^^^^
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\tools\collect_env.py", line 383, in bench
+    ocr.init()
+    ~~~~~~~~^^
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\pipeline\ocr_stage.py", line 66, in init
+    _get_ocr()
+    ~~~~~~~~^^
+  File "D:\code\CursorProjects\ScreenScanOCRRecognize\pipeline\ocr_stage.py", line 23, in _get_ocr
+    from paddleocr import PaddleOCR, __version__ as paddle_version
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\paddleocr\__init__.py", line 17, in <module>
+    from ._models import (
+    ...<13 lines>...
+    )
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\paddleocr\_models\__init__.py", line 15, in <module>
+    from .chart_parsing import ChartParsing
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\paddleocr\_models\chart_parsing.py", line 16, in <module>
+    from ._doc_vlm import (
+    ...<2 lines>...
+    )
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\paddleocr\_models\_doc_vlm.py", line 21, in <module>
+    from .base import PaddleXPredictorWrapper, PredictorCLISubcommandExecutor
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\paddleocr\_models\base.py", line 17, in <module>
+    from paddlex import create_predictor
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\paddlex\__init__.py", line 41, in <module>
+    _initialize()
+    ~~~~~~~~~~~^^
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\paddlex\__init__.py", line 38, in _initialize
+    repo_manager.initialize()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\Lib\site-packages\paddlex\repo_manager\core.py", line 214, in initialize
+    raise RuntimeError(
+        "PDX has already been initialized. Reinitialization is not supported."
+    )
+RuntimeError: PDX has already been initialized. Reinitialization is not supported.
+
