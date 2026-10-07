@@ -37,6 +37,9 @@ class Overlay(QWidget):
     BG_RADIUS = 10
     KW_HINT_GAP = 12
     MID_GAP = 28
+    HEADER_DATA_GAP = 8
+    _HEADER_TEXT_LEFT = '提示'
+    _HEADER_TEXT_RIGHT = 'OCR结果'
 
     def __init__(self, config=None, parent=None):
         super().__init__(parent)
@@ -189,9 +192,11 @@ class Overlay(QWidget):
         def w_of(text):
             return fm.horizontalAdvance(text) if text else 0
 
-        self._kw_w   = min(max((w_of(r[0]) for r in left_rows), default=0), kw_cap)
+        header_kw_w = w_of(self._HEADER_TEXT_LEFT)
+        header_ocr_w = w_of(self._HEADER_TEXT_RIGHT)
+        self._kw_w   = min(max(header_kw_w, max((w_of(r[0]) for r in left_rows), default=0)), kw_cap)
         self._hint_w = min(max((w_of(r[1]) for r in left_rows), default=0), hint_cap)
-        self._ocr_w  = min(max((w_of(r[0]) for r in right_rows), default=0), ocr_cap)
+        self._ocr_w  = min(max(header_ocr_w, max((w_of(r[0]) for r in right_rows), default=0)), ocr_cap)
 
         self._left_rows = left_rows
         self._right_rows = right_rows
@@ -202,7 +207,7 @@ class Overlay(QWidget):
             self.PADDING + self._kw_w + self.KW_HINT_GAP + self._hint_w
             + self.MID_GAP + self._ocr_w + self._shadow_offset + self.PADDING
         )
-        h = rows * self._line_height + self.PADDING * 2
+        h = self._line_height + self.HEADER_DATA_GAP + rows * self._line_height + self.PADDING * 2
         screen = QGuiApplication.primaryScreen()
         if screen:
             sg = screen.geometry()
@@ -230,8 +235,12 @@ class Overlay(QWidget):
         kw_x   = self.PADDING
         hint_x = kw_x + self._kw_w + self.KW_HINT_GAP
         ocr_x  = hint_x + self._hint_w + self.MID_GAP
-        # 文字 baseline：每行起点 y = padding + ascent + i * line_height
-        y0 = self.PADDING + ascent
+
+        header_y = self.PADDING + ascent
+        self._draw_text(p, kw_x, header_y, self._HEADER_TEXT_LEFT, _C_MUTED)
+        self._draw_text(p, ocr_x, header_y, self._HEADER_TEXT_RIGHT, _C_MUTED)
+
+        y0 = header_y + self._line_height + self.HEADER_DATA_GAP
 
         rows = max(len(self._left_rows), len(self._right_rows))
         for i in range(rows):
