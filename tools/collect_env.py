@@ -3,6 +3,7 @@
 用法（在项目根目录，用项目 .venv 的解释器跑）：
     .venv\\Scripts\\python.exe tools\\collect_env.py            # 完整采集 + 性能基准
     .venv\\Scripts\\python.exe tools\\collect_env.py --no-bench # 跳过基准（不加载 OCR 模型）
+    .venv\\Scripts\\python.exe tools\\collect_env.py --compare-mobile  # 额外对比 mobile 模型（首次联网下载）
 
 输出：logs/env_report_YYYYmmdd_HHMMSS.txt（logs/ 已在 .gitignore 中）。
 隐私：不输出关键词内容、不输出 OCR 识别出的文字，只统计数量与耗时。
@@ -162,28 +163,55 @@ def collect_python():
     emit(run([sys.executable, '-m', 'pip', 'list', '--format=freeze', '--disable-pip-version-check']))
 
 
+# 子进程里跑：paddlex 只能初始化一次，导入失败会把主进程弄成半初始化状态，
+# 连累后面的基准。导入顺序与 app 一致（先 paddleocr，再 paddle）。
+_PADDLE_PROBE = r'''
+import time, traceback
+t0 = time.time()
+try:
+    import paddleocr
+    print(f"import paddleocr 耗时: {time.time() - t0:.1f}s")
+    print(f"paddleocr: {paddleocr.__version__}")
+except Exception:
+    print("paddleocr 导入失败:")
+    traceback.print_exc()
+import paddle
+print(f"paddle: {paddle.__version__}")
+print(f"compiled_with_cuda: {paddle.device.is_compiled_with_cuda()}")
+try:
+    print(f"cuda: {paddle.version.cuda()}  cudnn: {paddle.version.cudnn()}")
+    print(f"cuda device_count: {paddle.device.cuda.device_count()}")
+    print(f"当前 device: {paddle.device.get_device()}")
+except Exception as e:
+    print(f"device 查询失败: {e!r}")
+'''
+
+
 @guarded
 def collect_paddle():
-    section('Paddle 运行时')
-    t0 = time.time()
-    import paddle
-    emit(f'import paddle 耗时: {time.time() - t0:.1f}s')
-    emit(f'paddle: {paddle.__version__}')
-    emit(f'compiled_with_cuda: {paddle.device.is_compiled_with_cuda()}')
-    try:
-        emit(f'cuda: {paddle.version.cuda()}  cudnn: {paddle.version.cudnn()}')
-    except Exception as e:
-        emit(f'cuda/cudnn 版本获取失败: {e!r}')
-    try:
-        emit(f'cuda device_count: {paddle.device.cuda.device_count()}')
-        emit(f'当前 device: {paddle.device.get_device()}')
-    except Exception as e:
-        emit(f'device 查询失败: {e!r}')
-    try:
-        import paddleocr
-        emit(f'paddleocr: {paddleocr.__version__}')
-    except Exception as e:
-        emit(f'paddleocr 导入失败: {e!r}')
+    section('Paddle 运行时（子进程探测）')
+    env = dict(os.environ, PYTHONIOENCODING='utf-8')
+    p = subprocess.run([sys.executable, '-c', _PADDLE_PROBE], capture_output=True,
+                       timeout=300, env=env, cwd=PROJECT_ROOT)
+    emit(p.stdout.decode('utf-8', errors='replace').strip())
+    err = p.stderr.decode('utf-8', errors='replace').strip()
+    if err:
+        emit('[stderr 尾部]')
+        emit('\n'.join(err.splitlines()[-40:]))
+
+    # 与 paddlex.utils.cache.CACHE_DIR 同口径；不 import paddlex，避免在主进程触发初始化
+    cache_dir = os.environ.get('PADDLE_PDX_CACHE_HOME',
+                               os.path.join(os.path.expanduser('~'), '.paddlex'))
+    models_dir = os.path.join(cache_dir, 'official_models')
+    emit('')
+    emit(f'已下载模型（{models_dir}）:')
+    if os.path.isdir(models_dir):
+        for name in sorted(os.listdir(models_dir)):
+            d = os.path.join(models_dir, name)
+            size = sum(os.path.getsize(os.path.join(r, f)) for r, _, fs in os.walk(d) for f in fs)
+            emit(f'  {name:40s} {size / 2**20:7.1f} MB')
+    else:
+        emit('  [目录不存在]')
 
 
 # ---------------------------------------------------------------- 屏幕 / 进程
@@ -339,23 +367,40 @@ def collect_logs():
 
 # ---------------------------------------------------------------- 基准
 
+def _time_ocr(fn, frame, runs):
+    """返回 (首帧 ms, [后续各帧 ms], 末帧行数)。首帧含 kernel 编译 / 显存分配，单独记。"""
+    t0 = time.perf_counter()
+    fn(frame)
+    first = (time.perf_counter() - t0) * 1000
+    ts, n = [], 0
+    for _ in range(runs):
+        t0 = time.perf_counter()
+        n = fn(frame)
+        ts.append((time.perf_counter() - t0) * 1000)
+    return first, ts, n
+
+
+def _count_lines(result):
+    if result and isinstance(result[0], dict):
+        return len(result[0].get('rec_texts', []))
+    return len(result[0] or []) if result else 0
+
+
 @guarded
-def bench():
+def bench(compare_mobile):
     section('性能基准（当前屏幕，真实 config）')
+    import logging
     from config.config import config
     config.load()
+    # 只改内存不 save：capture 在 enable_roi=False 时会强制全屏，基准要两种都测
+    config.set('scan.enable_roi', True)
     from pipeline.capture import CaptureStage
     from pipeline.diff_gate import DiffGate
-    from pipeline.ocr_stage import OCRStage
 
     cap = CaptureStage()
     roi = config.get('scan.roi_rect')
     roi = tuple(roi) if isinstance(roi, list) and len(roi) == 4 else None
-    targets = [('全屏', None)]
-    if roi and config.get('scan.enable_roi'):
-        targets.insert(0, ('ROI', roi))
-    elif roi:
-        emit(f'注：enable_roi=False，capture 会强制全屏，ROI {roi} 不单独测')
+    targets = ([('ROI', roi)] if roi else []) + [('全屏', None)]
 
     frames = {}
     for name, r in targets:
@@ -369,40 +414,60 @@ def bench():
 
     gate = DiffGate()
     ts = []
-    f0 = next(iter(frames.values()))
     for _ in range(20):
         t0 = time.perf_counter()
-        gate.should_skip(f0)
+        gate.should_skip(frames['全屏'])
         ts.append((time.perf_counter() - t0) * 1000)
-    emit(f'DiffGate.should_skip: {_stats(ts)}')
+    emit(f'DiffGate.should_skip(全屏): {_stats(ts)}')
 
     emit('')
-    emit(f'加载 OCR 模型（lang={config.get("ocr.language")}, gpu={config.get("gpu.enabled")}）…')
+    emit(f'加载 OCR 模型（app 同款参数：lang={config.get("ocr.language")}, gpu={config.get("gpu.enabled")}）…')
     t0 = time.perf_counter()
-    ocr = OCRStage()
-    ocr.init()
+    from pipeline import ocr_stage
+    ocr_stage.OCRStage().init()
     emit(f'OCR init: {time.perf_counter() - t0:.1f}s')
     emit('init 后显存: ' + run(['nvidia-smi', '--query-gpu=memory.used,memory.total', '--format=csv,noheader']))
 
-    import logging
-    logging.getLogger().setLevel(logging.WARNING)  # 屏蔽 OCR 文本日志，避免把屏幕内容写进报告
-    for name, frame in frames.items():
-        ocr.recognize(frame)  # 预热（首帧含 kernel 编译 / 显存分配）
-        runs = 5 if name == 'ROI' else 3
-        ts, n_lines = [], 0
-        for _ in range(runs):
+    # 屏蔽 OCR 文本日志，避免把屏幕内容写进报告
+    logging.getLogger().setLevel(logging.WARNING)
+    try:
+        models = [('app 默认', ocr_stage._ocr_instance)]
+        if compare_mobile:
+            from paddleocr import PaddleOCR
+            emit('加载 mobile 模型（首次会联网下载）…')
             t0 = time.perf_counter()
-            res = ocr.recognize(frame)
-            ts.append((time.perf_counter() - t0) * 1000)
-            n_lines = len(res)
-        emit(f'OCR[{name}] shape={frame.shape} 行数={n_lines}: {_stats(ts)}')
-    logging.getLogger().setLevel(logging.INFO)
+            mobile = PaddleOCR(
+                lang=config.get('ocr.language'),
+                device='gpu' if config.get('gpu.enabled') else 'cpu',
+                enable_mkldnn=False,
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=False,
+                text_detection_model_name='PP-OCRv5_mobile_det',
+                text_recognition_model_name='PP-OCRv5_mobile_rec',
+            )
+            emit(f'mobile init: {time.perf_counter() - t0:.1f}s')
+            models.append(('PP-OCRv5 mobile', mobile))
+        for model_name, inst in models:
+            emit('')
+            emit(f'[{model_name}]')
+            for name, frame in frames.items():
+                runs = 5 if name == 'ROI' else 3
+                first, ts, n = _time_ocr(lambda f: _count_lines(inst.ocr(f)), frame, runs)
+                emit(f'  OCR[{name}] shape={frame.shape} 行数={n} 首帧={first:.0f}ms 稳态: {_stats(ts)}')
+    finally:
+        logging.getLogger().setLevel(logging.INFO)
+    emit('')
     emit('跑完后 GPU: ' + run(['nvidia-smi', '--query-gpu=memory.used,utilization.gpu', '--format=csv,noheader']))
+    emit('同时占用 GPU 的进程（游戏等会让耗时波动）:')
+    emit(run(['nvidia-smi', '--query-compute-apps=pid,process_name,used_memory', '--format=csv']))
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--no-bench', action='store_true', help='跳过 OCR 性能基准')
+    ap.add_argument('--compare-mobile', action='store_true',
+                    help='额外加载 PP-OCRv5 mobile 模型做对比（首次需联网下载）')
     args = ap.parse_args()
     try:
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -411,6 +476,9 @@ def main():
 
     emit(f'# ScreenScanOCRRecognize 运行机环境报告  {datetime.datetime.now():%Y-%m-%d %H:%M:%S}')
     emit(f'# project_root = {PROJECT_ROOT}')
+    emit(f'# interpreter  = {sys.executable}')
+    if sys.prefix == getattr(sys, 'base_prefix', sys.prefix):
+        emit('# !!! 当前不是虚拟环境解释器；如果 GUI 用的是 .venv，请改用 .venv\\Scripts\\python.exe 重跑')
     collect_system()
     collect_nvidia()
     collect_git()
@@ -421,7 +489,7 @@ def main():
     collect_config()
     collect_logs()
     if not args.no_bench:
-        bench()
+        bench(args.compare_mobile)
 
     os.makedirs(os.path.join(PROJECT_ROOT, 'logs'), exist_ok=True)
     out = os.path.join(PROJECT_ROOT, 'logs', f'env_report_{datetime.datetime.now():%Y%m%d_%H%M%S}.txt')
