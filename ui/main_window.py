@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from config.config import config
+from pipeline import preload
 from utils.hotkey import HotkeyManager
 from .log_bridge import LogBridge
 from .overlay import Overlay
@@ -26,6 +27,8 @@ class MainWindow(QMainWindow):
     # 热键回调跑在 keyboard 库的线程里，靠 Signal 跨线程转主线程（queued connection）
     _hotkey_roi_toggled = Signal()
     _hotkey_fullscreen_toggled = Signal()
+    # 预加载回调跑在预加载线程里，同样经 Signal 转回主线程
+    _preload_done = Signal(str, float)
 
     def __init__(self):
         super().__init__()
@@ -104,6 +107,12 @@ class MainWindow(QMainWindow):
         self.hotkey = HotkeyManager()
         self.hotkey.register('ctrl+alt+1', self._hotkey_roi_toggled.emit, 'ROI 扫描开关')
         self.hotkey.register('ctrl+alt+2', self._hotkey_fullscreen_toggled.emit, '全屏扫描开关')
+
+        # 后台模型预加载（app.py 已启动）：未开扫时在状态栏显示加载进度
+        self._preload_done.connect(self._on_preload_done)
+        if preload.state() == preload.LOADING:
+            self.scan_page.status_bar.set_status('模型加载中')
+        preload.add_done_callback(self._preload_done.emit)
 
         # startup_mode='auto'：UI 渲染稳定后自动开扫（延 200ms 让事件循环先转一圈）
         if (config.get('app.startup_mode') or 'paused') == 'auto':
@@ -231,6 +240,15 @@ class MainWindow(QMainWindow):
         self.roi_border.show_for(roi)  # roi=None 时自动收起红框
         self.worker.set_roi(roi)
         logging.info(f'已切换为{"ROI" if use_roi and roi is not None else "全屏"}扫描')
+
+    def _on_preload_done(self, state, elapsed):
+        # 已经在扫描时状态栏归 worker 管，不覆盖
+        if self.worker.isRunning():
+            return
+        if state == preload.READY:
+            self.scan_page.status_bar.set_status('就绪')
+        else:
+            self.scan_page.status_bar.set_status('模型加载失败')
 
     def _on_status_changed(self, text):
         """worker 三态：'初始化中'/'运行中'/'已停止'。

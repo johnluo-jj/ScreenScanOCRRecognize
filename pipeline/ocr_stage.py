@@ -1,16 +1,31 @@
 import cv2
 import logging
 import numpy as np
+import os
+import threading
 import time
 
 from config.config import config
 from utils.logger import logger
 
+# PaddleX 每次构造模型前会联网探测各模型源（HuggingFace / ModelScope / BOS）的连通性，
+# 国内网络下要等好几秒。模型已缓存在本地时这一步纯属浪费，默认跳过；外部环境变量可覆盖。
+# 必须在 import paddleocr 之前设置（paddleocr 在 _get_ocr 里懒导入，这里一定在它之前）。
+os.environ.setdefault('PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK', 'True')
+
 _ocr_instance = None
 _ocr_init_config = None  # (lang, gpu_enabled) 初始化时的配置
+# 启动预加载线程和扫描线程可能同时进 _get_ocr：后到者阻塞等前者构造完，复用同一个实例，
+# 而不是并发再构造一份（双倍显存 + 双倍耗时）。
+_ocr_lock = threading.Lock()
 
 
 def _get_ocr():
+    with _ocr_lock:
+        return _get_ocr_locked()
+
+
+def _get_ocr_locked():
     global _ocr_instance, _ocr_init_config
     lang = config.get('ocr.language')
     use_gpu = config.get('gpu.enabled')
@@ -56,14 +71,38 @@ def _get_ocr():
     return _ocr_instance
 
 
+_warmed_up = None  # 已预热过的实例；配置变更重建后需要重新预热
+
+
+def _warmup(ocr):
+    """首次推理要做 GPU kernel 选择 / 显存分配，比稳态慢 3 倍左右（实测 0.6s vs 0.2s）。
+    用一张带文字的小图先跑一次，把这部分成本挪到加载阶段。纯白图检测不出文本框，
+    识别模型就不会被调用，所以必须画字。"""
+    global _warmed_up
+    if _warmed_up is ocr:
+        return
+    img = np.full((64, 320, 3), 255, dtype=np.uint8)
+    cv2.putText(img, 'Warmup 123', (10, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 0), 2)
+    t0 = time.time()
+    try:
+        ocr.ocr(img)
+    except Exception:
+        # 预热失败不影响正式扫描，正式推理出错会走原有异常路径
+        logger.warning("OCR 预热失败，首帧可能偏慢", exc_info=True)
+        return
+    _warmed_up = ocr
+    logger.info(f"OCR 预热完成，耗时 {time.time() - t0:.2f}s")
+
+
 class OCRStage:
     def __init__(self):
         # 模型走模块级单例 _ocr_instance，不缓存实例字段，避免配置切换后引用不同步。
         pass
 
     def init(self):
-        """预初始化 OCR 模型（让 5-15s 加载发生在 scan 循环之前）"""
-        _get_ocr()
+        """预初始化 OCR 模型（让 5-15s 加载发生在 scan 循环之前），并预热一次推理。"""
+        ocr = _get_ocr()
+        _warmup(ocr)
 
     def recognize(self, frame_bgr):
         """
@@ -123,8 +162,10 @@ class OCRStage:
         return texts
 
     def release(self):
-        global _ocr_instance, _ocr_init_config
-        _ocr_instance = None
-        _ocr_init_config = None
+        global _ocr_instance, _ocr_init_config, _warmed_up
+        with _ocr_lock:
+            _ocr_instance = None
+            _ocr_init_config = None
+            _warmed_up = None
         import gc
         gc.collect()
