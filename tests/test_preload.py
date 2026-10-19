@@ -20,7 +20,6 @@ from pipeline import ocr_stage, preload
 class _FakePaddleOCR:
     constructed = 0
     fail_next = False
-    ocr_calls = 0
 
     def __init__(self, **kwargs):
         time.sleep(0.3)  # 模拟耗时构造，制造并发窗口
@@ -30,7 +29,6 @@ class _FakePaddleOCR:
         _FakePaddleOCR.constructed += 1
 
     def ocr(self, img):
-        _FakePaddleOCR.ocr_calls += 1
         return []
 
 
@@ -42,7 +40,6 @@ def fake_paddle(monkeypatch):
     monkeypatch.setitem(sys.modules, 'paddleocr', mod)
     _FakePaddleOCR.constructed = 0
     _FakePaddleOCR.fail_next = False
-    _FakePaddleOCR.ocr_calls = 0
     ocr_stage.OCRStage().release()
     monkeypatch.setattr(preload, '_state', preload.IDLE)
     monkeypatch.setattr(preload, '_callbacks', [])
@@ -75,13 +72,6 @@ def test_concurrent_init_constructs_once():
     assert _wait_done() == preload.READY
     assert _FakePaddleOCR.constructed == 1
     assert got is ocr_stage._get_ocr()
-
-
-def test_warmup_runs_once():
-    preload.start_preload()
-    assert _wait_done() == preload.READY
-    ocr_stage.OCRStage().init()  # 扫描线程 init 不应再预热
-    assert _FakePaddleOCR.ocr_calls == 1
 
 
 def test_start_preload_is_idempotent():

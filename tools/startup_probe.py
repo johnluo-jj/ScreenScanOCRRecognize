@@ -6,12 +6,12 @@
 需要截屏，必须在已登录的桌面会话里跑（SSH 会话里截不到屏）。
 
 每次测量都在全新子进程里做（import 必须冷启动才有意义），分段计时：
-    import paddleocr → import paddle → 构造 PaddleOCR → 预热(可选) → 首帧真实截图 → 第二帧
+    import paddleocr → import paddle → 构造 PaddleOCR → 首帧真实截图 → 第二帧
 （顺序和 GUI 一致：先 paddleocr 再 paddle。反过来先 import paddle 会让随后 modelscope 拉起的
  torch 加载 shm.dll 失败 WinError 127。）
 变体：
-    旧版         —— 联网源检查 + 同步 import modelscope/torch + 不预热
-    新版         —— 跳过源检查 + modelscope 延迟导入 + 预热（与 pipeline/ocr_stage.py 一致）
+    旧版         —— 联网源检查 + 同步 import modelscope/torch
+    新版         —— 跳过源检查 + modelscope 延迟导入（与 pipeline/ocr_stage.py 一致）
     新版+mobile  —— 新版 + PP-OCRv5 mobile 模型（首次需联网下载，可 --skip-mobile）
 结果打印到终端并写入 logs/startup_probe_<时间>.txt，把整段输出贴回即可。
 """
@@ -75,12 +75,6 @@ def child(name):
                       text_recognition_model_name='PP-OCRv5_mobile_rec')
     ocr = PaddleOCR(**kwargs)
     t = mark('构造 PaddleOCR', t)
-
-    if v['new']:
-        img = np.full((64, 320, 3), 255, dtype=np.uint8)
-        cv2.putText(img, 'Warmup 123', (10, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 0), 2)
-        ocr.ocr(img)
-        t = mark('预热', t)
 
     res = ocr.ocr(frame)
     t = mark('首帧 OCR', t)

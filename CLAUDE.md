@@ -91,7 +91,7 @@ app.py / cli.py → ScanPipeline.scan_once()
 - **`config/config.py`** — `Config` 单例，从 `config/config.yaml` 加载并与 `defaults.DEFAULT_CONFIG` 深度合并（yaml 优先，defaults 兜底）。点号路径访问：`config.get('scan.interval_seconds')`，支持 `config.set()` + `config.save()`。**注意新版不再有 `is_dirty()` / `clear_dirty()` 脏标记机制**——pipeline 各阶段每次扫描都直接 `config.get(...)` 取最新值，无需缓存刷新。
 - **`utils/hotkey.py`** — `HotkeyManager`，包装 `keyboard.add_hotkey/remove_hotkey`，`register(hotkey, callback, description)` / `unregister_all()`。
 - **`utils/logger.py`** — 模块级 `logger`（StreamHandler，禁 propagate）+ `configure_from_config(cfg)` 按 `logging.level` 调整级别。
-- **`pipeline/preload.py`** — `start_preload()` 起 daemon 线程跑 `OCRStage.init()`（构造 + 预热），`app.py` 在建窗口前调用，让 ~13s 模型加载与 UI 构建并行。状态 `idle/loading/ready/failed`，`add_done_callback(fn(state, elapsed))` 回调跑在预加载线程（MainWindow 用 `_preload_done` Signal 转主线程，未开扫时状态栏显示「模型加载中 / 就绪」）。扫描线程不感知预加载：照旧 `pipeline.init()`，靠 `_ocr_lock` 阻塞等待或直接复用；预加载失败时扫描线程会自行重试。
+- **`pipeline/preload.py`** — `start_preload()` 起 daemon 线程跑 `OCRStage.init()`，`app.py` 在建窗口前调用，让模型加载（运行机 ~8s）与 UI 构建并行。状态 `idle/loading/ready/failed`，`add_done_callback(fn(state, elapsed))` 回调跑在预加载线程（MainWindow 用 `_preload_done` Signal 转主线程，未开扫时状态栏显示「模型加载中 / 就绪」）。扫描线程不感知预加载：照旧 `pipeline.init()`，靠 `_ocr_lock` 阻塞等待或直接复用；预加载失败时扫描线程会自行重试。
 - **`ui/scan_worker.py`** — `ScanWorker(QThread)`，后台线程内 `pipeline.init()` → 循环 `scan_once()`。两个 Signal：`status_changed(str)` → StatusBar；`result_ready(ocr_results, matches)` → Overlay。`stop_scan()` 设标志位，循环以 0.3s 分段 sleep 实现 ≤300ms 退出响应。
 
 ### 线程模型（GUI 模式）
@@ -119,9 +119,11 @@ app.py / cli.py → ScanPipeline.scan_once()
 
 ## 关键设计决策
 
-**OCR 引擎单例 + 配置感知**：`ocr_stage._get_ocr()` 缓存 `(lang, gpu_enabled)` 元组，配置不变就复用；任意一项变化触发重建。构造过程持 `_ocr_lock`，预加载线程与扫描线程并发进入时只构造一次。`OCRStage.init()` 构造后用一张带字小图预热一次推理（首帧 ~0.6s → 稳态 ~0.2s）。模块顶部 `os.environ.setdefault('PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK', 'True')` 跳过 PaddleX 每次启动的模型源联网检查（要求模型已缓存在本地）。`OCRStage.release()` 显式置空实例 + `gc.collect()`。
+**OCR 引擎单例 + 配置感知**：`ocr_stage._get_ocr()` 缓存 `(lang, gpu_enabled)` 元组，配置不变就复用；任意一项变化触发重建。构造过程持 `_ocr_lock`，预加载线程与扫描线程并发进入时只构造一次。
 
-**启动耗时排查**：`tools/startup_probe.py` 在运行机上逐子进程冷启动测量 import / 构造 / 预热 / 首帧各段耗时，对比源检查开关、预热、mobile 模型。
+**启动加速（运行机实测启动到首帧 12–13.6s → 9.6–9.8s）**：① 模块顶部 `os.environ.setdefault('PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK', 'True')`——PaddleX 在 **import 阶段**（`official_models` 模块级 `_ModelManager()`）就逐个 HTTP 探测 4 个模型源，跳过要求模型已缓存在本地；② `_defer_heavy_imports()` 在 import paddleocr 前把 `modelscope` 换成占位模块——paddlex 顶层无条件 `import modelscope` 会拉起 torch（~1.1s），OCR 用不到（不能用 `importlib.util.LazyLoader`，`import` 语句读 `__spec__` 就会触发加载）；③ 启动即后台预加载（见 `pipeline/preload.py`）。实测**不做预热推理**（预热 ~0.5s 只换首帧快 ~0.35s）。**不要先 `import paddle` 再 import paddleocr**：那样随后 torch 加载 `shm.dll` 会 WinError 127。mobile 模型（PP-OCRv5_mobile_det/rec）启动 ~5.6s、每帧快一倍，但中文错字明显多，暂未采用。`OCRStage.release()` 显式置空实例 + `gc.collect()`。
+
+**启动耗时排查**：`tools/startup_probe.py` 在运行机上逐子进程冷启动测量 import / 构造 / 首帧各段耗时，对比旧版 / 新版 / mobile。
 
 **帧差检测跳过 OCR**：`DiffGate` 把每帧缩为 160x120 灰度缩略图，与上一帧算 MSE，低于阈值就 `should_skip()=True`，pipeline 复用 `_last_result.ocr_results / matches`，大幅减少 GPU/CPU 占用。设置 ROI 时 `set_roi()` 会调用 `diff_gate.reset()` 清空上一帧。
 

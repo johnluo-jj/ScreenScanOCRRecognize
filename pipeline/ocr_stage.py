@@ -96,38 +96,15 @@ def _get_ocr_locked():
     return _ocr_instance
 
 
-_warmed_up = None  # 已预热过的实例；配置变更重建后需要重新预热
-
-
-def _warmup(ocr):
-    """首次推理要做 GPU kernel 选择 / 显存分配，比稳态慢 3 倍左右（实测 0.6s vs 0.2s）。
-    用一张带文字的小图先跑一次，把这部分成本挪到加载阶段。纯白图检测不出文本框，
-    识别模型就不会被调用，所以必须画字。"""
-    global _warmed_up
-    if _warmed_up is ocr:
-        return
-    img = np.full((64, 320, 3), 255, dtype=np.uint8)
-    cv2.putText(img, 'Warmup 123', (10, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 0), 2)
-    t0 = time.time()
-    try:
-        ocr.ocr(img)
-    except Exception:
-        # 预热失败不影响正式扫描，正式推理出错会走原有异常路径
-        logger.warning("OCR 预热失败，首帧可能偏慢", exc_info=True)
-        return
-    _warmed_up = ocr
-    logger.info(f"OCR 预热完成，耗时 {time.time() - t0:.2f}s")
-
-
 class OCRStage:
     def __init__(self):
         # 模型走模块级单例 _ocr_instance，不缓存实例字段，避免配置切换后引用不同步。
         pass
 
     def init(self):
-        """预初始化 OCR 模型（让 5-15s 加载发生在 scan 循环之前），并预热一次推理。"""
-        ocr = _get_ocr()
-        _warmup(ocr)
+        """预初始化 OCR 模型（让 5-15s 加载发生在 scan 循环之前）。
+        不做预热推理：运行机实测预热 ~0.5s 只换来首帧快 ~0.35s，「打开就扫」时反而更慢。"""
+        _get_ocr()
 
     def recognize(self, frame_bgr):
         """
@@ -187,10 +164,9 @@ class OCRStage:
         return texts
 
     def release(self):
-        global _ocr_instance, _ocr_init_config, _warmed_up
+        global _ocr_instance, _ocr_init_config
         with _ocr_lock:
             _ocr_instance = None
             _ocr_init_config = None
-            _warmed_up = None
         import gc
         gc.collect()
