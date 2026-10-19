@@ -30,7 +30,7 @@ def main():
     _set_windows_app_user_model_id()
     config.load()
     configure_from_config(config)
-    # 模型加载（运行机 ~8s）放到后台，与下面的 UI 构建并行；点开始时通常已就绪。
+    # 模型加载（运行机 ~5s）放到后台，与下面的 UI 构建并行；点开始时通常已就绪。
     # PySide6 / ui 包故意在这之后才 import，让 paddle 尽早开始加载。
     start_preload()
     from PySide6.QtWidgets import QApplication

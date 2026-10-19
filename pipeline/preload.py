@@ -1,6 +1,6 @@
 """启动即后台预加载 OCR 模型。
 
-app.py 在建窗口前调用 start_preload()，让 paddle import + 模型构造（运行机实测 ~8s）
+app.py 在建窗口前调用 start_preload()，让 paddle import + 模型构造（运行机 GUI 内实测 ~5s）
 与 UI 初始化并行，用户点「开始」/按热键时模型通常已就绪。
 
 扫描线程照旧走 pipeline.init() → OCRStage.init() → _get_ocr()：

@@ -91,7 +91,7 @@ app.py / cli.py → ScanPipeline.scan_once()
 - **`config/config.py`** — `Config` 单例，从 `config/config.yaml` 加载并与 `defaults.DEFAULT_CONFIG` 深度合并（yaml 优先，defaults 兜底）。点号路径访问：`config.get('scan.interval_seconds')`，支持 `config.set()` + `config.save()`。**注意新版不再有 `is_dirty()` / `clear_dirty()` 脏标记机制**——pipeline 各阶段每次扫描都直接 `config.get(...)` 取最新值，无需缓存刷新。
 - **`utils/hotkey.py`** — `HotkeyManager`，包装 `keyboard.add_hotkey/remove_hotkey`，`register(hotkey, callback, description)` / `unregister_all()`。
 - **`utils/logger.py`** — 模块级 `logger`（StreamHandler，禁 propagate）+ `configure_from_config(cfg)` 按 `logging.level` 调整级别。
-- **`pipeline/preload.py`** — `start_preload()` 起 daemon 线程跑 `OCRStage.init()`，`app.py` 在建窗口前调用，让模型加载（运行机 ~8s）与 UI 构建并行。状态 `idle/loading/ready/failed`，`add_done_callback(fn(state, elapsed))` 回调跑在预加载线程（MainWindow 用 `_preload_done` Signal 转主线程，未开扫时状态栏显示「模型加载中 / 就绪」）。扫描线程不感知预加载：照旧 `pipeline.init()`，靠 `_ocr_lock` 阻塞等待或直接复用；预加载失败时扫描线程会自行重试。
+- **`pipeline/preload.py`** — `start_preload()` 起 daemon 线程跑 `OCRStage.init()`，`app.py` 在建窗口前调用，让模型加载与 UI 构建并行（PySide6/ui 故意在 `start_preload()` 之后才 import）。运行机实测：双击后 ~2s 出窗口、~6.7s 模型就绪（改前：点开始后还要再等 13s+）。状态 `idle/loading/ready/failed`，`add_done_callback(fn(state, elapsed))` 回调跑在预加载线程（MainWindow 用 `_preload_done` Signal 转主线程，未开扫时状态栏显示「模型加载中 / 就绪」）。扫描线程不感知预加载：照旧 `pipeline.init()`，靠 `_ocr_lock` 阻塞等待或直接复用；预加载失败时扫描线程会自行重试。
 - **`ui/scan_worker.py`** — `ScanWorker(QThread)`，后台线程内 `pipeline.init()` → 循环 `scan_once()`。两个 Signal：`status_changed(str)` → StatusBar；`result_ready(ocr_results, matches)` → Overlay。`stop_scan()` 设标志位，循环以 0.3s 分段 sleep 实现 ≤300ms 退出响应。
 
 ### 线程模型（GUI 模式）
