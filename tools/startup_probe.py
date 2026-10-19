@@ -1,16 +1,18 @@
 """启动耗时探针：拆解「打开程序 → 能出第一帧 OCR 结果」各段耗时，在运行机上跑。
 
-用法（项目根目录）：
-    python tools\\startup_probe.py              # 默认每个变体跑 2 次
-    python tools\\startup_probe.py --repeat 1 --skip-mobile
+用法（项目根目录，用 GUI 同一个解释器 .venv）：
+    .venv\\Scripts\\python.exe tools\\startup_probe.py              # 默认每个变体跑 2 次
+    .venv\\Scripts\\python.exe tools\\startup_probe.py --repeat 1 --skip-mobile
+需要截屏，必须在已登录的桌面会话里跑（SSH 会话里截不到屏）。
 
 每次测量都在全新子进程里做（import 必须冷启动才有意义），分段计时：
-    import paddle → import paddleocr → 构造 PaddleOCR → 预热(可选) → 首帧真实截图 → 第二帧
+    import paddleocr → import paddle → 构造 PaddleOCR → 预热(可选) → 首帧真实截图 → 第二帧
+（顺序和 GUI 一致：先 paddleocr 再 paddle。反过来先 import paddle 会让随后 modelscope 拉起的
+ torch 加载 shm.dll 失败 WinError 127。）
 变体：
-    server+源检查      —— 旧版行为（PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=False）
-    server+跳过检查    —— 新版默认
-    server+跳过+预热   —— 新版默认 + 预热，看首帧是否回落到稳态
-    mobile+跳过检查    —— PP-OCRv5 mobile 模型（首次需联网下载，可 --skip-mobile）
+    旧版         —— 联网源检查 + 同步 import modelscope/torch + 不预热
+    新版         —— 跳过源检查 + modelscope 延迟导入 + 预热（与 pipeline/ocr_stage.py 一致）
+    新版+mobile  —— 新版 + PP-OCRv5 mobile 模型（首次需联网下载，可 --skip-mobile）
 结果打印到终端并写入 logs/startup_probe_<时间>.txt，把整段输出贴回即可。
 """
 import argparse
@@ -24,10 +26,9 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULT_TAG = '__PROBE_RESULT__'
 
 VARIANTS = {
-    'server_check': dict(label='server+源检查', check=True, warmup=False, mobile=False),
-    'server_nocheck': dict(label='server+跳过检查', check=False, warmup=False, mobile=False),
-    'server_nocheck_warm': dict(label='server+跳过+预热', check=False, warmup=True, mobile=False),
-    'mobile_nocheck': dict(label='mobile+跳过检查', check=False, warmup=False, mobile=True),
+    'old': dict(label='旧版', new=False, mobile=False),
+    'new': dict(label='新版', new=True, mobile=False),
+    'new_mobile': dict(label='新版+mobile', new=True, mobile=True),
 }
 
 
@@ -35,7 +36,7 @@ def child(name):
     """子进程：按变体测一次，最后一行输出 JSON 结果。"""
     v = VARIANTS[name]
     t_start = time.perf_counter()
-    os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'False' if v['check'] else 'True'
+    os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True' if v['new'] else 'False'
     sys.path.insert(0, PROJECT_ROOT)
     r = {}
 
@@ -55,10 +56,14 @@ def child(name):
         frame = cv2.cvtColor(np.array(sct.grab(sct.monitors[1])), cv2.COLOR_BGRA2BGR)
     t = mark('prep(config+截图)', t)
 
-    import paddle  # noqa: F401
-    t = mark('import paddle', t)
+    if v['new']:
+        from pipeline.ocr_stage import _defer_heavy_imports
+        _defer_heavy_imports()
     from paddleocr import PaddleOCR
     t = mark('import paddleocr', t)
+    import paddle  # noqa: F401
+    t = mark('import paddle', t)
+    r['torch已加载'] = 'torch' in sys.modules
 
     kwargs = dict(
         lang=lang, device='gpu' if use_gpu else 'cpu', enable_mkldnn=False,
@@ -71,7 +76,7 @@ def child(name):
     ocr = PaddleOCR(**kwargs)
     t = mark('构造 PaddleOCR', t)
 
-    if v['warmup']:
+    if v['new']:
         img = np.full((64, 320, 3), 255, dtype=np.uint8)
         cv2.putText(img, 'Warmup 123', (10, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 0), 2)
         ocr.ocr(img)

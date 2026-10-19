@@ -106,3 +106,21 @@ def test_callback_after_done_called_immediately():
     calls = []
     preload.add_done_callback(lambda s, e: calls.append(s))
     assert calls == [preload.READY]
+
+
+def test_defer_heavy_imports_is_lazy(tmp_path, monkeypatch):
+    """modelscope 换成 LazyLoader 后：import 不执行模块体，首次访问属性才执行。"""
+    pkg = tmp_path / 'modelscope'
+    pkg.mkdir()
+    marker = tmp_path / 'executed'
+    (pkg / '__init__.py').write_text(
+        f'open(r"{marker}", "w").close()\nsnapshot_download = "real"\n', encoding='utf-8')
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, 'modelscope', raising=False)
+
+    ocr_stage._defer_heavy_imports()
+    import modelscope
+    assert not marker.exists(), 'import 阶段不应执行 modelscope 模块体'
+    assert modelscope.snapshot_download == 'real'
+    assert marker.exists()
+    monkeypatch.delitem(sys.modules, 'modelscope', raising=False)

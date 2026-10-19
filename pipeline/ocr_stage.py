@@ -1,17 +1,41 @@
 import cv2
+import importlib.util
 import logging
 import numpy as np
 import os
+import sys
 import threading
 import time
+import types
 
 from config.config import config
 from utils.logger import logger
 
-# PaddleX 每次构造模型前会联网探测各模型源（HuggingFace / ModelScope / BOS）的连通性，
-# 国内网络下要等好几秒。模型已缓存在本地时这一步纯属浪费，默认跳过；外部环境变量可覆盖。
-# 必须在 import paddleocr 之前设置（paddleocr 在 _get_ocr 里懒导入，这里一定在它之前）。
+# PaddleX 在 import 阶段（official_models 模块级 _ModelManager()）就会对 4 个模型源逐个
+# HTTP HEAD 探测连通性，运行机实测 ~1.7s，网络差时更久。模型已缓存在本地时纯属浪费，默认跳过；
+# 外部环境变量可覆盖。必须在 import paddleocr 之前设置（paddleocr 在 _get_ocr 里懒导入）。
 os.environ.setdefault('PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK', 'True')
+
+
+class _DeferredModule(types.ModuleType):
+    """占位模块：首次访问属性时才真正导入并转发。
+    不用 importlib.util.LazyLoader —— `import x` 语句会读 __spec__，直接触发它加载，等于没延迟。"""
+
+    def __getattr__(self, attr):
+        if sys.modules.get(self.__name__) is self:
+            del sys.modules[self.__name__]
+        return getattr(importlib.import_module(self.__name__), attr)
+
+
+def _defer_heavy_imports():
+    """paddlex official_models 顶层无条件 `import modelscope`，modelscope 又会 import torch
+    （运行机实测 ~1.1s，且 torch 与 paddle 的 CUDA DLL 有加载顺序冲突）。modelscope 只在
+    「从 ModelScope 下载模型」时用到，这里先放占位模块，真用到时再导入。
+    必须在 import paddleocr 之前调用；已导入或未安装时什么都不做。"""
+    if 'modelscope' in sys.modules or importlib.util.find_spec('modelscope') is None:
+        return
+    sys.modules['modelscope'] = _DeferredModule('modelscope')
+
 
 _ocr_instance = None
 _ocr_init_config = None  # (lang, gpu_enabled) 初始化时的配置
@@ -35,6 +59,7 @@ def _get_ocr_locked():
         return _ocr_instance
 
     # 配置变更或首次初始化
+    _defer_heavy_imports()
     from paddleocr import PaddleOCR, __version__ as paddle_version
     major = int(paddle_version.split('.')[0])
     device = 'gpu' if use_gpu else 'cpu'
