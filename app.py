@@ -3,16 +3,12 @@
 import os
 import sys
 
-from PySide6.QtWidgets import QApplication
-
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from config.config import config
 from pipeline.preload import start_preload
-from ui.main_window import MainWindow
-from ui.tray import make_app_icon
 from utils.logger import configure_from_config
 
 
@@ -34,8 +30,12 @@ def main():
     _set_windows_app_user_model_id()
     config.load()
     configure_from_config(config)
-    # 模型加载（运行机 ~13s）放到后台，与下面的 UI 构建并行；点开始时通常已就绪
+    # 模型加载（运行机 ~8s）放到后台，与下面的 UI 构建并行；点开始时通常已就绪。
+    # PySide6 / ui 包故意在这之后才 import，让 paddle 尽早开始加载。
     start_preload()
+    from PySide6.QtWidgets import QApplication
+    from ui.main_window import MainWindow
+    from ui.tray import make_app_icon
     app = QApplication(sys.argv)
     app.setWindowIcon(make_app_icon(256))
     qss_path = os.path.join(PROJECT_ROOT, 'ui', 'styles', 'light.qss')
