@@ -114,3 +114,9 @@ def test_defer_heavy_imports_is_lazy(tmp_path, monkeypatch):
     assert modelscope.snapshot_download == 'real'
     assert marker.exists()
     monkeypatch.delitem(sys.modules, 'modelscope', raising=False)
+
+
+def test_cuda_cache_env_defaults():
+    """独立 JIT 缓存目录 + 4GB 上限，避免被其它 CUDA 程序挤掉后首帧重新 JIT。"""
+    assert os.environ.get('CUDA_CACHE_MAXSIZE') == str(4 * 1024 ** 3)
+    assert os.environ.get('CUDA_CACHE_PATH', '').endswith(os.path.join('ScreenScanOCRRecognize', 'ComputeCache'))

@@ -16,6 +16,19 @@ from utils.logger import logger
 # 外部环境变量可覆盖。必须在 import paddleocr 之前设置（paddleocr 在 _get_ocr 里懒导入）。
 os.environ.setdefault('PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK', 'True')
 
+# CUDA 驱动把 JIT 编出的 GPU 内核缓存在 %APPDATA%\NVIDIA\ComputeCache，所有 CUDA 程序共用、
+# 默认上限 ~1GB，满了按 LRU 淘汰。RTX 5070 Ti 实测：缓存命中时构造+首帧 ~2.7s，被其它程序挤掉后
+# 要重新 JIT，构造+首帧 ~17s（用户日志里「首帧 12s」的来源）。给本程序独立缓存目录 + 上限拉满 4GB，
+# 编过一次就不会再被挤掉。CUDA 在首次初始化时读这两个变量，必须在 import paddle 之前设置。
+_cuda_cache_dir = os.path.join(
+    os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'ScreenScanOCRRecognize', 'ComputeCache')
+os.environ.setdefault('CUDA_CACHE_PATH', _cuda_cache_dir)
+os.environ.setdefault('CUDA_CACHE_MAXSIZE', str(4 * 1024 ** 3))
+try:
+    os.makedirs(os.environ['CUDA_CACHE_PATH'], exist_ok=True)
+except OSError:
+    pass
+
 
 class _DeferredModule(types.ModuleType):
     """占位模块：首次访问属性时才真正导入并转发。
