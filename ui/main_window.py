@@ -1,4 +1,6 @@
 import logging
+import sys
+
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
@@ -258,6 +260,33 @@ class MainWindow(QMainWindow):
         self.scan_page.status_bar.set_status(text)
         running = text in ('初始化中', '运行中')
         self.scan_page.config_panel.set_running(running)
+
+    def show_and_activate(self):
+        """显示主窗口并拉到前台（托盘点击 / 第二次启动都走这里）。
+
+        第二次启动时本进程不是前台进程，Windows 前台锁可能拒绝 SetForegroundWindow；
+        发起方已在发送管道消息前调用 AllowSetForegroundWindow 让渡权限，这里再显式
+        调一次，失败则用 SwitchToThisWindow 兜底。
+        """
+        if self.isMinimized():
+            self.showNormal()
+        else:
+            self.show()
+        self.raise_()
+        self.activateWindow()
+        if sys.platform == 'win32':
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                hwnd = ctypes.c_void_p(int(self.winId()))
+                user32.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+                user32.SetForegroundWindow.restype = ctypes.c_bool
+                user32.SwitchToThisWindow.argtypes = [ctypes.c_void_p, ctypes.c_bool]
+                user32.SwitchToThisWindow.restype = None
+                if not user32.SetForegroundWindow(hwnd):
+                    user32.SwitchToThisWindow(hwnd, True)
+            except Exception:
+                pass
 
     def request_real_quit(self):
         """托盘 → 退出菜单调用，让随后的 closeEvent 不再拦截缩托盘。"""

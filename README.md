@@ -90,6 +90,8 @@ python cli.py
 
 首次启动会下载 PaddleOCR 模型（几百 MB），需要网络。
 
+GUI 是单实例的：重复双击 `gui.bat` / 再次运行 `app.py` 不会开第二个窗口，而是把已运行的主窗口唤到前台（最小化或缩在托盘时也会恢复显示）。
+
 ## 配置
 
 主配置 `config/config.yaml`，默认值由 `config/defaults.py` 兜底（缺失键自动补默认值）。GUI 设置页修改会自动写回 yaml。

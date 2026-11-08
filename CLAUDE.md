@@ -34,7 +34,7 @@ pip install paddlepaddle-gpu==3.2.2 -i https://www.paddlepaddle.org.cn/packages/
 
 ```
 ScreenScanOCRRecognize/
-├── app.py                          # PySide6 GUI 入口（~30 行，QApplication 启动）
+├── app.py                          # PySide6 GUI 入口（单实例检查 + QApplication 启动）
 ├── cli.py                          # CLI 入口（~65 行，纯交互式循环）
 ├── gui.bat                         # GUI 启动批处理（pythonw 隐藏控制台）
 ├── build.spec                      # PyInstaller 打包脚本
@@ -51,7 +51,8 @@ ScreenScanOCRRecognize/
 │   └── pipeline.py                 # ScanPipeline（编排 + ScanResult）
 ├── utils/
 │   ├── hotkey.py                   # HotkeyManager（keyboard 库全局热键）
-│   └── logger.py                   # logger 单例 + configure_from_config
+│   ├── logger.py                   # logger 单例 + configure_from_config
+│   └── single_instance.py          # 单实例锁 + 管道唤醒（重复启动唤出已有窗口）
 ├── ui/                             # PySide6 全部 UI 代码
 │   ├── main_window.py              # MainWindow（QMainWindow + 侧边栏 + StackedWidget）
 │   ├── scan_worker.py              # ScanWorker（QThread 子类，跑 ScanPipeline）
@@ -81,7 +82,8 @@ app.py / cli.py → ScanPipeline.scan_once()
 
 ### 核心模块
 
-- **`app.py`** — PySide6 GUI 启动器（~30 行）：`config.load()` → `QApplication` + 加载 `ui/styles/light.qss`（运行时把 `{ICON_DIR}` 替换为 `ui/icons` 绝对路径）→ `MainWindow.show()`。主窗口实现在 `ui/main_window.py`。
+- **`app.py`** — PySide6 GUI 启动器：`config.load()` → 单实例锁检查（已有实例则唤醒它并退出）→ `start_preload()` → `QApplication` + 加载 `ui/styles/light.qss`（运行时把 `{ICON_DIR}` 替换为 `ui/icons` 绝对路径）→ `MainWindow.show()`。主窗口实现在 `ui/main_window.py`。
+- **`utils/single_instance.py`** — `InstanceLock`（Windows 命名互斥体，进程存活期间持有，崩溃自动释放）+ `notify_running_instance()`（第二次启动时用 QLocalSocket 给已有实例发激活消息，1s 超时）+ `SingleInstanceGuard`（首个实例的 QLocalServer，收到连接回调 `MainWindow.show_and_activate()`）。`show_and_activate()` 会 show/raise/activate，并用 `SetForegroundWindow`/`SwitchToThisWindow` 突破 Windows 前台锁。
 - **`cli.py`** — CLI 入口，`config.load()` 后构建 `ScanPipeline`，循环 `scan_once()` 输出匹配。**不弹浮窗**，靠 stdout 打印结果。
 - **`pipeline/matcher.py`** — `SubstringMatcher` 类，基于 `pyahocorasick` 自动机的多模式子串匹配（casefold 不区分大小写）。返回 `[{'keyword','hint','ocr_text'}, ...]`。模块级 `get_cached_matcher(path)` 提供按文件路径的单例缓存 + mtime 热重载，`parse_keyword_line(line)` 解析 `关键词 提示词`（空白分隔）或 `关键词:提示词`（冒号兼容）。
 - **`pipeline/pipeline.py`** — `ScanPipeline` 类，组合四个阶段（capture/diff_gate/ocr/matcher）+ 上次结果缓存。`scan_once()` 返回 `ScanResult(ocr_results, matches, skipped, duration)`；diff_gate 命中时复用上次的 ocr_results 和 matches，仅刷新 `skipped=True` 与 `duration`。
@@ -124,6 +126,8 @@ app.py / cli.py → ScanPipeline.scan_once()
 **启动加速（运行机实测启动到首帧 12–13.6s → 9.6–9.8s）**：① 模块顶部 `os.environ.setdefault('PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK', 'True')`——PaddleX 在 **import 阶段**（`official_models` 模块级 `_ModelManager()`）就逐个 HTTP 探测 4 个模型源，跳过要求模型已缓存在本地；② `_defer_heavy_imports()` 在 import paddleocr 前把 `modelscope` 换成占位模块——paddlex 顶层无条件 `import modelscope` 会拉起 torch（~1.1s），OCR 用不到（不能用 `importlib.util.LazyLoader`，`import` 语句读 `__spec__` 就会触发加载）；③ 启动即后台预加载（见 `pipeline/preload.py`）。实测**不做预热推理**（预热 ~0.5s 只换首帧快 ~0.35s）。**不要先 `import paddle` 再 import paddleocr**：那样随后 torch 加载 `shm.dll` 会 WinError 127。mobile 模型（PP-OCRv5_mobile_det/rec）启动 ~5.6s、每帧快一倍，但中文错字明显多，暂未采用。④ `CUDA_CACHE_PATH` 设为独立目录（`%LOCALAPPDATA%\ScreenScanOCRRecognize\ComputeCache`）+ `CUDA_CACHE_MAXSIZE=4GB`：RTX 50 系（5070 Ti，paddle-gpu 3.3.1 cu129）大量 phi / cuDNN 内核要驱动 PTX JIT（无缓存时每种算子首调 ~1s，卷积 ~5s，构造+首帧 ~17s），命中缓存 ~2.7s；系统共用 ComputeCache 会被其它程序挤掉，导致用户冷启动首帧 12–13s。独立目录首次需积累几次才热。40 系 + cu118（luo-pc）不受影响。`OCRStage.release()` 显式置空实例 + `gc.collect()`。
 
 **启动耗时排查**：`tools/startup_probe.py` 在运行机上逐子进程冷启动测量 import / 构造 / 首帧各段耗时，对比旧版 / 新版 / mobile。
+
+**单实例（重复双击 gui.bat 唤出已有窗口）**：`app.py` 在 `start_preload()` 之前先创建 Windows 命名互斥体 `Local\ScreenScanOCRRecognize.gui.v1`，用户快速双击两次时也只有一个进程继续初始化（互斥体随进程退出/崩溃由 OS 自动释放，无锁文件残留）。后来者用 QLocalSocket 向已有实例的 QLocalServer 管道发激活消息（1s 超时）后退出；首个实例收到连接后调 `MainWindow.show_and_activate()`（show/raise/activate + `SetForegroundWindow`/`SwitchToThisWindow` 突破 Windows 前台锁）。`notify_running_instance()` 只在“已有实例”路径调用，因此 QtNetwork 的 ~0.2s import 只影响第二次启动的退出延迟，不拖慢首启。注意 Windows 允许同名命名管道多实例，仅靠 QLocalServer 无法原子判重，互斥体不可省略。
 
 **帧差检测跳过 OCR**：`DiffGate` 把每帧缩为 160x120 灰度缩略图，与上一帧算 MSE，低于阈值就 `should_skip()=True`，pipeline 复用 `_last_result.ocr_results / matches`，大幅减少 GPU/CPU 占用。设置 ROI 时 `set_roi()` 会调用 `diff_gate.reset()` 清空上一帧。
 
