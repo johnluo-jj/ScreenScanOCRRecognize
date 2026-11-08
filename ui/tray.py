@@ -82,13 +82,7 @@ class TrayIcon(QSystemTrayIcon):
             self._on_show()
 
     def _on_show(self):
-        w = self._main_window
-        if w.isMinimized():
-            w.showNormal()
-        else:
-            w.show()
-        w.raise_()
-        w.activateWindow()
+        self._main_window.show_and_activate()
 
     def _on_quit(self):
         # 通知 MainWindow 走真正退出路径，让 closeEvent 不再拦截缩托盘

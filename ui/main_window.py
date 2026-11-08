@@ -1,4 +1,6 @@
 import logging
+import sys
+
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame, QHBoxLayout, QVBoxLayout,
@@ -6,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from config.config import config
+from pipeline import preload
 from utils.hotkey import HotkeyManager
 from .log_bridge import LogBridge
 from .overlay import Overlay
@@ -26,6 +29,8 @@ class MainWindow(QMainWindow):
     # 热键回调跑在 keyboard 库的线程里，靠 Signal 跨线程转主线程（queued connection）
     _hotkey_roi_toggled = Signal()
     _hotkey_fullscreen_toggled = Signal()
+    # 预加载回调跑在预加载线程里，同样经 Signal 转回主线程
+    _preload_done = Signal(str, float)
 
     def __init__(self):
         super().__init__()
@@ -104,6 +109,12 @@ class MainWindow(QMainWindow):
         self.hotkey = HotkeyManager()
         self.hotkey.register('ctrl+alt+1', self._hotkey_roi_toggled.emit, 'ROI 扫描开关')
         self.hotkey.register('ctrl+alt+2', self._hotkey_fullscreen_toggled.emit, '全屏扫描开关')
+
+        # 后台模型预加载（app.py 已启动）：未开扫时在状态栏显示加载进度
+        self._preload_done.connect(self._on_preload_done)
+        if preload.state() == preload.LOADING:
+            self.scan_page.status_bar.set_status('模型加载中')
+        preload.add_done_callback(self._preload_done.emit)
 
         # startup_mode='auto'：UI 渲染稳定后自动开扫（延 200ms 让事件循环先转一圈）
         if (config.get('app.startup_mode') or 'paused') == 'auto':
@@ -232,6 +243,15 @@ class MainWindow(QMainWindow):
         self.worker.set_roi(roi)
         logging.info(f'已切换为{"ROI" if use_roi and roi is not None else "全屏"}扫描')
 
+    def _on_preload_done(self, state, elapsed):
+        # 已经在扫描时状态栏归 worker 管，不覆盖
+        if self.worker.isRunning():
+            return
+        if state == preload.READY:
+            self.scan_page.status_bar.set_status('就绪')
+        else:
+            self.scan_page.status_bar.set_status('模型加载失败')
+
     def _on_status_changed(self, text):
         """worker 三态：'初始化中'/'运行中'/'已停止'。
         - 初始化中 / 运行中：start 禁、stop 启
@@ -240,6 +260,33 @@ class MainWindow(QMainWindow):
         self.scan_page.status_bar.set_status(text)
         running = text in ('初始化中', '运行中')
         self.scan_page.config_panel.set_running(running)
+
+    def show_and_activate(self):
+        """显示主窗口并拉到前台（托盘点击 / 第二次启动都走这里）。
+
+        第二次启动时本进程不是前台进程，Windows 前台锁可能拒绝 SetForegroundWindow；
+        发起方已在发送管道消息前调用 AllowSetForegroundWindow 让渡权限，这里再显式
+        调一次，失败则用 SwitchToThisWindow 兜底。
+        """
+        if self.isMinimized():
+            self.showNormal()
+        else:
+            self.show()
+        self.raise_()
+        self.activateWindow()
+        if sys.platform == 'win32':
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                hwnd = ctypes.c_void_p(int(self.winId()))
+                user32.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+                user32.SetForegroundWindow.restype = ctypes.c_bool
+                user32.SwitchToThisWindow.argtypes = [ctypes.c_void_p, ctypes.c_bool]
+                user32.SwitchToThisWindow.restype = None
+                if not user32.SetForegroundWindow(hwnd):
+                    user32.SwitchToThisWindow(hwnd, True)
+            except Exception:
+                pass
 
     def request_real_quit(self):
         """托盘 → 退出菜单调用，让随后的 closeEvent 不再拦截缩托盘。"""
